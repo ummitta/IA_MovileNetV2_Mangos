@@ -1,0 +1,237 @@
+{
+  "dataset": {
+    "doi": "10.17632/hxsnvwty3r.1",
+    "name": "MangoLeafBD",
+    "page_url": "https://doi.org/10.17632/hxsnvwty3r.1",
+    "source_images": 4000,
+    "source_images_per_class": 500,
+    "version": "v1"
+  },
+  "duplicates": {
+    "exact": {
+      "cross_class_conflicts": 0,
+      "groups": 21,
+      "removed": 21,
+      "removed_by_class": {
+        "Anthracnose": 14,
+        "Die Back": 7
+      }
+    },
+    "near_duplicate": {
+      "cross_class_groups": 0,
+      "example_groups": [
+        {
+          "group_id": "152ea747396a",
+          "members": [
+            "Anthracnose/20211011_134655 (Custom).jpg",
+            "Anthracnose/20211011_134655(0) (Custom).jpg"
+          ],
+          "signals": [
+            "asset_stem",
+            "capture_timestamp"
+          ]
+        },
+        {
+          "group_id": "71f8d9aa9ed8",
+          "members": [
+            "Anthracnose/20211011_165858 (Custom).jpg",
+            "Anthracnose/IMG_20211011_165858 (Custom).jpg"
+          ],
+          "signals": [
+            "asset_stem",
+            "capture_timestamp"
+          ]
+        },
+        {
+          "group_id": "cc13c65bbd2a",
+          "members": [
+            "Anthracnose/20211011_170703 (Custom).jpg",
+            "Anthracnose/20211011_170704 (Custom).jpg"
+          ],
+          "signals": [
+            "dhash"
+          ]
+        },
+        {
+          "group_id": "82e4d5ee217e",
+          "members": [
+            "Anthracnose/20211011_170708 (Custom).jpg",
+            "Anthracnose/20211011_170709 (Custom).jpg"
+          ],
+          "signals": [
+            "dhash"
+          ]
+        },
+        {
+          "group_id": "5bd8770e33a6",
+          "members": [
+            "Anthracnose/IMG_20211011_161715 (Custom).jpg",
+            "Anthracnose/IMG_20211011_161718 (Custom).jpg"
+          ],
+          "signals": [
+            "dhash"
+          ]
+        }
+      ],
+      "groups": 3685,
+      "max_members": 4,
+      "multi_member_groups": 238,
+      "signals": {
+        "asset_stem": 226,
+        "capture_timestamp": 233,
+        "dhash": 232
+      },
+      "singletons": 3447,
+      "threshold": 0
+    }
+  },
+  "fingerprint": "5d3901cca4bbc355e59714de8f021ed48e2fa258a5fd7024a22b13d602f8ce6e",
+  "generation": {
+    "command": "python scripts/build_manifest.py --dataset-dir data/raw/mangoleafbd --seed 42 --output data/manifests/mangoleaf_1000_manifest.csv",
+    "dhash_threshold": 0,
+    "elapsed_seconds": 10.5,
+    "pillow": "11.3.0",
+    "python": "3.13.5",
+    "script": "scripts/build_manifest.py",
+    "seed": 42
+  },
+  "leaf_identity": {
+    "authors_declared_distinct_leaves": 1800,
+    "authors_leaf_id_published": false,
+    "authors_note": "Los autores indican ~1.800 hojas distintas entre las 4.000 imágenes; el resto son variantes obtenidas ampliando o rotando la misma hoja.",
+    "filename_scheme": "timestamp de captura (YYYYMMDD_HHMMSS) + sufijos (Custom), - Copy, (n)",
+    "files_with_capture_timestamp": 3979,
+    "scope": "Verificado que no existe ID de hoja en el dataset. Se agrupan copias exactas y variantes re-guardadas/rotadas en múltiplos de 90°; no es posible demostrar variantes con rotación arbitraria o recorte.",
+    "signals_used": [
+      "SHA-256 exacto",
+      "stem normalizado (sin sufijos ni prefijo IMG_)",
+      "timestamp de captura",
+      "dHash 64 bits x 4 orientaciones (umbral 0)"
+    ],
+    "timestamp_collisions": 234
+  },
+  "manifest_path": "data/manifests/mangoleaf_1000_manifest.csv",
+  "residual_risk": "El dataset no publica un identificador de hoja. Se agruparon copias exactas (SHA-256), variantes re-guardadas con el mismo stem/timestamp y variantes rotadas en múltiplos de 90° o re-guardadas con dHash <= umbral. Rotaciones arbitrarias, recortes agresivos o cambios de escala que no conservan el nombre ni el dHash pueden escapar a la detección: el solapamiento entre particiones no puede demostrarse más allá de estas señales.",
+  "selection": {
+    "images_per_class": 125,
+    "per_class": [
+      {
+        "class": "Anthracnose",
+        "class_idx": 0,
+        "eligible_groups": 481,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 19,
+        "total": 125,
+        "train": 88,
+        "val": 18,
+        "valid_unique": 486
+      },
+      {
+        "class": "Bacterial Canker",
+        "class_idx": 1,
+        "eligible_groups": 495,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 19,
+        "total": 125,
+        "train": 88,
+        "val": 18,
+        "valid_unique": 500
+      },
+      {
+        "class": "Cutting Weevil",
+        "class_idx": 2,
+        "eligible_groups": 222,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 18,
+        "total": 125,
+        "train": 88,
+        "val": 19,
+        "valid_unique": 500
+      },
+      {
+        "class": "Die Back",
+        "class_idx": 3,
+        "eligible_groups": 493,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 18,
+        "total": 125,
+        "train": 88,
+        "val": 19,
+        "valid_unique": 493
+      },
+      {
+        "class": "Gall Midge",
+        "class_idx": 4,
+        "eligible_groups": 496,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 19,
+        "total": 125,
+        "train": 87,
+        "val": 19,
+        "valid_unique": 500
+      },
+      {
+        "class": "Healthy",
+        "class_idx": 5,
+        "eligible_groups": 500,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 19,
+        "total": 125,
+        "train": 87,
+        "val": 19,
+        "valid_unique": 500
+      },
+      {
+        "class": "Powdery Mildew",
+        "class_idx": 6,
+        "eligible_groups": 499,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 19,
+        "total": 125,
+        "train": 87,
+        "val": 19,
+        "valid_unique": 500
+      },
+      {
+        "class": "Sooty Mould",
+        "class_idx": 7,
+        "eligible_groups": 499,
+        "extra_representatives": 0,
+        "groups_used": 125,
+        "source_files": 500,
+        "test": 19,
+        "total": 125,
+        "train": 87,
+        "val": 19,
+        "valid_unique": 500
+      }
+    ]
+  },
+  "totals": {
+    "by_split": {
+      "test": 150,
+      "train": 700,
+      "val": 150
+    },
+    "rows": 1000
+  },
+  "validation": {
+    "ignored": [],
+    "images_checked": 4000,
+    "invalid": []
+  }
+}

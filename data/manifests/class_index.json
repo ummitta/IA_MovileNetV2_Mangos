@@ -1,0 +1,38 @@
+{
+  "classes": [
+    {
+      "class": "Anthracnose",
+      "class_idx": 0
+    },
+    {
+      "class": "Bacterial Canker",
+      "class_idx": 1
+    },
+    {
+      "class": "Cutting Weevil",
+      "class_idx": 2
+    },
+    {
+      "class": "Die Back",
+      "class_idx": 3
+    },
+    {
+      "class": "Gall Midge",
+      "class_idx": 4
+    },
+    {
+      "class": "Healthy",
+      "class_idx": 5
+    },
+    {
+      "class": "Powdery Mildew",
+      "class_idx": 6
+    },
+    {
+      "class": "Sooty Mould",
+      "class_idx": 7
+    }
+  ],
+  "dataset": "MangoLeafBD",
+  "version": "v1"
+}
