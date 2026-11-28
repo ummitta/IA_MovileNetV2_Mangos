@@ -142,22 +142,51 @@ $ .venv/bin/python scripts/verify_manifest.py data/manifests/mangoleaf_1000_mani
 RESULTADO GLOBAL: PASS (19 comprobaciones)
 ```
 
-## 4. Uso del manifiesto por las tres corridas (Issues #2–#6)
+## 4. Cargadores compartidos para MobileNetV2 y ResNet-18
 
-Todas las corridas leen el mismo CSV y resuelven la imagen como
-`dataset_root / relative_path`; la etiqueta es `class_idx` (0–7, fijo en
-`data/manifests/class_index.json`). El preprocesado acordado para la Issue #2 es
-RGB 224×224. **No se deben recalcular particiones**: el CSV ya contiene `split`.
+Con el dataset descargado y el entorno virtual activo, instala las dependencias de los
+cargadores y recorre las tres particiones:
+
+```bash
+pip install -e ".[loaders]"
+python scripts/inspect_loaders.py
+python scripts/inspect_loaders.py --full
+```
+
+En Linux con CPU puedes instalar primero las ruedas CPU con
+`pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cpu`.
+El comando de inspección acepta `--dataset-dir`, `--manifest`, `--batch-size` y `--seed`.
+Con `--full` comprueba los conteos 700/150/150, las ocho etiquetas por partición, las
+dimensiones, los valores finitos y la repetibilidad de un ejemplo de validación.
 
 ```python
-import csv
-from pathlib import Path
+from mangoleaf.config import DEFAULT_MANIFEST_PATH, DEFAULT_RAW_DIR, IDX_TO_CLASS
+from mangoleaf.loaders import build_loaders
 
-root = Path("data/raw/mangoleafbd")
-with open("data/manifests/mangoleaf_1000_manifest.csv", newline="", encoding="utf-8") as fh:
-    rows = list(csv.DictReader(fh))
-train = [(root / row["relative_path"], int(row["class_idx"])) for row in rows if row["split"] == "train"]
+loaders = build_loaders(DEFAULT_RAW_DIR, DEFAULT_MANIFEST_PATH, batch_size=32, seed=42)
+images, labels, paths = next(iter(loaders["val"]))
+print(images.shape, paths[0], IDX_TO_CLASS[labels[0].item()])
 ```
+
+Cada lote entrega imágenes RGB `float32` en orden `(N, C, H, W)`, índices de clase
+`int64` y rutas relativas en el mismo orden. Se conserva el último lote. Los tres
+cargadores usan el índice fijo y la columna `split` del manifiesto. Validación y prueba
+siguen el orden del CSV.
+
+Se eligieron los pesos `MobileNet_V2_Weights.IMAGENET1K_V1` y
+`ResNet18_Weights.IMAGENET1K_V1`. Ambos usan el mismo preprocesamiento de TorchVision:
+redimensionar el lado corto a 256 (bilineal), recortar el centro a 224 × 224, convertir
+los píxeles a [0, 1] y normalizar cada canal RGB mediante `(x - media) / desviación`.
+Las medias son (0.485, 0.456, 0.406) y las desviaciones (0.229, 0.224, 0.225).
+El cargador aplica el escalado del artículo una sola vez y entrega el tensor ya
+normalizado al modelo.
+
+Solo en entrenamiento se mezcla el orden y se aplican tres decisiones independientes
+antes del preprocesamiento común: volteo horizontal (50 %), rotación y zoom conjuntos
+(50 %, ángulo uniforme entre −10° y +10° y escala entre 1.0 y 1.1), y cambio de brillo
+(50 %, factor uniforme entre 0.85 y 1.15). Para comparar arquitecturas, crea los
+cargadores al inicio de cada corrida con la misma semilla (42 por defecto) y recorre
+los lotes en la misma secuencia. El muestreo y los aumentos tienen generadores propios.
 
 ## Estructura del repositorio
 
@@ -217,7 +246,7 @@ Decisiones y límites documentados en `mangoleaf_1000_manifest.meta.json`:
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest -q        # 46 tests
+.venv/bin/python -m pytest -q
 .venv/bin/ruff check .               # estilo/imports
 .venv/bin/black --check .            # formato
 ```
