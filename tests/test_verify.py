@@ -114,3 +114,18 @@ def test_rehash_detects_modified_file(tmp_path: Path, valid_rows, write_image) -
 
     assert not report.passed
     assert "SHA-256 recalculado coincide con el manifiesto" in _failed_names(report)
+
+
+def test_rehash_reports_missing_file_and_checks_next_row(tmp_path, valid_rows):
+    missing, modified = valid_rows()[:2]
+    image = tmp_path / modified.relative_path
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"modified")
+    path = tmp_path / "manifest.csv"
+    write_manifest([missing, modified], path)
+
+    report = render_report(verify_manifest(path, dataset_dir=tmp_path, rehash=True))
+
+    assert missing.relative_path in report
+    assert modified.relative_path in report
+    assert "RESULTADO GLOBAL: FAIL" in report

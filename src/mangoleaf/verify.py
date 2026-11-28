@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from mangoleaf.config import (
     SPLITS,
     TOTAL_IMAGES,
 )
+from mangoleaf.dataset import sha256_file
 from mangoleaf.manifest import (
     Manifest,
     ManifestError,
@@ -236,6 +236,7 @@ def verify_manifest(
         root = Path(dataset_dir).resolve()
         missing: list[str] = []
         escaping: list[str] = []
+        available: list[tuple[ManifestRow, Path]] = []
         for row in manifest.rows:
             candidate = (root / row.relative_path).resolve()
             try:
@@ -245,12 +246,15 @@ def verify_manifest(
                 continue
             if not candidate.is_file():
                 missing.append(row.relative_path)
+                continue
+            available.append((row, candidate))
         checks.append(
             _check(
                 "Todas las rutas existen dentro de --dataset-dir",
                 not missing and not escaping,
                 (
-                    f"{len(missing)} ausentes, {len(escaping)} fuera del root"
+                    f"{len(missing)} ausentes, {len(escaping)} fuera del root: "
+                    + ", ".join((missing + escaping)[:10])
                     if (missing or escaping)
                     else f"{len(manifest.rows)} archivos encontrados"
                 ),
@@ -259,34 +263,40 @@ def verify_manifest(
 
         if rehash:
             mismatches: list[str] = []
-            for row in manifest.rows:
-                digest = hashlib.sha256()
-                with (root / row.relative_path).open("rb") as handle:
-                    for chunk in iter(lambda: handle.read(1 << 20), b""):
-                        digest.update(chunk)
-                if digest.hexdigest() != row.sha256:
+            for row, candidate in available:
+                try:
+                    digest = sha256_file(candidate)
+                except OSError as exc:
+                    mismatches.append(f"{row.relative_path} ({type(exc).__name__})")
+                    continue
+                if digest != row.sha256:
                     mismatches.append(row.relative_path)
             checks.append(
                 _check(
                     "SHA-256 recalculado coincide con el manifiesto",
-                    not mismatches,
-                    f"{len(mismatches)} discrepancias" if mismatches else "ok",
+                    not mismatches and len(available) == len(manifest.rows),
+                    (
+                        f"{len(available)}/{len(manifest.rows)} archivos accesibles, "
+                        f"{len(mismatches)} errores: " + ", ".join(mismatches[:10])
+                        if mismatches
+                        else f"{len(available)}/{len(manifest.rows)} hashes coincidentes"
+                    ),
                 )
             )
 
         if check_images:
             unreadable: list[str] = []
-            for row in manifest.rows:
+            for row, candidate in available:
                 try:
-                    with Image.open(root / row.relative_path) as image:
+                    with Image.open(candidate) as image:
                         image.load()
                 except (UnidentifiedImageError, OSError) as exc:
                     unreadable.append(f"{row.relative_path} ({type(exc).__name__})")
             checks.append(
                 _check(
                     "Las 1.000 imágenes abren con Pillow",
-                    not unreadable,
-                    f"{len(unreadable)} ilegibles" if unreadable else "ok",
+                    not unreadable and len(available) == len(manifest.rows),
+                    f"{len(available) - len(unreadable)}/{len(manifest.rows)} imágenes legibles",
                 )
             )
 

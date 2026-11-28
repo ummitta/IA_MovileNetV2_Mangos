@@ -338,18 +338,22 @@ def main(argv: list[str] | None = None) -> int:
                 )
             _print_counts(counts)
 
+            verified = verify_extracted(temp_root, hashes, skip=args.skip_hash_check)
+
             if destination.exists():
                 if not args.overwrite:
                     raise DownloadError(
                         f"{destination} ya existe. Usa --overwrite para reemplazarlo."
                     )
+                (destination / ".source.json").unlink(missing_ok=True)
                 for class_name in CLASSES:
-                    shutil.rmtree(destination / class_name, ignore_errors=True)
+                    folder = destination / class_name
+                    if folder.exists():
+                        shutil.rmtree(folder)
             destination.mkdir(parents=True, exist_ok=True)
             for class_name in CLASSES:
                 shutil.move(str(temp_root / class_name), str(destination / class_name))
 
-        verified = verify_extracted(destination, hashes, skip=args.skip_hash_check)
         write_source_marker(
             destination,
             archive,
