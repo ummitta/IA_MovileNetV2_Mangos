@@ -256,3 +256,44 @@ Decisiones y límites documentados en `mangoleaf_1000_manifest.meta.json`:
 - La rama de trabajo de la Issue #1 es `feat/issue-1-dataset-manifest`.
 - Nunca se hace push directo a `main`.
 - Los artefactos de `data/manifests/` se versionan; `data/raw/`, imágenes y ZIPs no.
+
+## Issue #3 · MobileNetV2 con y sin Dropout
+
+Desde la raíz del repositorio y con el entorno Python activo:
+
+```bash
+python -m pip install -e '.[loaders,dev]'
+python scripts/download_dataset.py
+python -m pytest
+python scripts/train_mobilenet.py --smoke --output runs/mobilenet-smoke
+python scripts/train_mobilenet.py --output runs/mobilenet-completo
+```
+
+Cada comando de entrenamiento ejecuta **ambas variantes**. Usa una carpeta de salida nueva
+para cada repetición. Se selecciona CUDA cuando está disponible y CPU en los demás casos.
+Se puede indicar el dispositivo con `--device` y ajustar los hilos de CPU con `--threads`.
+La prueba rápida usa un lote por fase en entrenamiento y validación.
+
+Las dos variantes copian los mismos pesos ImageNet V1 y la misma cabeza inicial de ocho
+clases. Solo cambia la probabilidad del Dropout existente en torchvision (0,5 o 0).
+Cada corrida reinicia la semilla 42 y los cargadores de la issue #2. La selección usa
+las 150 imágenes de validación y reserva las 150 de test para la evaluación posterior.
+
+| Fase | Épocas | LR inicial | Parámetros actualizados |
+| --- | ---: | ---: | --- |
+| Base congelada | 10 | 0,0001 | Cabeza; BatchNorm del extractor en evaluación |
+| Ajuste fino | Hasta 20 | 0,00001 | Red completa |
+
+Se usa entropía cruzada, lote 32 y un Adam nuevo al comienzo de cada fase.
+Los contadores se reinician al cambiar de fase. Tras cinco épocas seguidas sin un nuevo
+mínimo de pérdida de validación, se multiplica la tasa por 0,5. La parada temprana
+ocurre tras diez épocas seguidas sin mejora. El ajuste fino continúa desde los pesos al
+final de la primera fase. El mejor checkpoint se selecciona entre **todas** las épocas
+de ambas fases y, en caso de empate, se conserva el primero.
+
+Cada variante escribe `config.json`, `history.csv` y `best.pt`. El directorio común
+contiene `class_index.json` y `comparison.json`, que registra el mínimo de validación
+y su época para cada variante. El script comprueba la salida de ocho logits, verifica
+el peso de la primera convolución al entrenar en cada fase y recarga ambos checkpoints.
+El [notebook de arquitectura](notebooks/mobilenetv2.ipynb) muestra las dimensiones
+medidas y verifica la suma residual del bloque invertido.
