@@ -297,3 +297,64 @@ y su época para cada variante. El script comprueba la salida de ocho logits, ve
 el peso de la primera convolución al entrenar en cada fase y recarga ambos checkpoints.
 El [notebook de arquitectura](notebooks/mobilenetv2.ipynb) muestra las dimensiones
 medidas y verifica la suma residual del bloque invertido.
+
+## Issue #4 · ResNet-18 como referencia
+
+El mismo script admite `--model resnet18`. Usa los pesos
+`ResNet18_Weights.IMAGENET1K_V1` de torchvision y reemplaza `fc` por una capa
+lineal de 512 entradas y ocho logits con sesgo. Esta cabeza carece de Dropout.
+Con la base congelada, Adam ajusta los 4.104 parámetros de la cabeza. En el
+ajuste fino quedan habilitados los 11.180.616 parámetros de la red adaptada.
+
+Desde la raíz del repositorio, con el entorno virtual activo:
+
+```bash
+python -m pip install -e '.[loaders,dev]'
+python scripts/download_dataset.py
+python scripts/train_mobilenet.py --model resnet18 --smoke --output runs/resnet18-smoke
+python scripts/train_mobilenet.py --model resnet18 --output runs/resnet18-completa
+```
+
+Usar un directorio de salida nuevo por ejecución. Para reproducir el entorno de
+entrenamiento en CPU con cuatro hilos, añadir `--device cpu --threads 4`.
+Se usan el manifiesto compartido, los aumentos y las imágenes RGB de 224 × 224
+de la issue #2. Las dos fases reutilizan el protocolo de la issue #3, con
+lote 32, semilla 42, Adam y entropía cruzada. La selección compara la pérdida
+media de las 150 imágenes de validación en todas las épocas. Las 150 imágenes
+de prueba quedan reservadas para la evaluación final.
+
+El resultado completo queda en `runs/resnet18-completa/`. La raíz contiene
+el índice de clases y `comparison.json` con la fase y época seleccionadas.
+El subdirectorio `resnet18/` contiene `best.pt`, `history.csv` y `config.json`,
+que incluye los parámetros habilitados en cada fase. La rutina comprueba la
+inclusión de la cabeza en Adam y reproduce los logits de un ejemplo al
+recargar el mejor checkpoint.
+
+Para reconstruir la arquitectura, cargar los pesos y predecir la clase de la
+primera imagen de validación, ejecutar desde el mismo entorno:
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+import torch
+from torch import nn
+from torchvision.models import resnet18
+
+from mangoleaf.config import DEFAULT_MANIFEST_PATH, DEFAULT_RAW_DIR
+from mangoleaf.loaders import build_loaders
+
+run = Path("runs/resnet18-completa")
+classes = json.loads((run / "class_index.json").read_text())["classes"]
+names = {item["class_idx"]: item["class"] for item in classes}
+model = resnet18(weights=None)
+model.fc = nn.Linear(model.fc.in_features, len(names))
+model.load_state_dict(torch.load(run / "resnet18/best.pt", map_location="cpu", weights_only=True))
+model.eval()
+images, labels, paths = next(iter(build_loaders(DEFAULT_RAW_DIR, DEFAULT_MANIFEST_PATH)["val"]))
+with torch.inference_mode():
+    predicted = model(images[:1]).argmax(dim=1).item()
+print(paths[0], "predicción:", names[predicted], "etiqueta:", names[labels[0].item()])
+PY
+```
