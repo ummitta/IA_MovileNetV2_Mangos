@@ -1,4 +1,4 @@
-"""Entrena variantes pareadas de MobileNetV2 y compara sus mejores checkpoints."""
+"""Entrena MobileNetV2 o la referencia ResNet-18 con el mismo protocolo."""
 
 import argparse
 import csv
@@ -16,7 +16,12 @@ setup_src_path()
 import torch  # noqa: E402
 import torchvision  # noqa: E402
 from torch import nn  # noqa: E402
-from torchvision.models import MobileNet_V2_Weights, mobilenet_v2  # noqa: E402
+from torchvision.models import (  # noqa: E402
+    MobileNet_V2_Weights,
+    ResNet18_Weights,
+    mobilenet_v2,
+    resnet18,
+)
 
 from mangoleaf.config import (  # noqa: E402
     CLASS_TO_IDX,
@@ -52,13 +57,18 @@ def epoch(model, batches, device, optimizer=None):
 
 
 def run_variant(model, args, dropout, probe, config):
-    folder = args.output / f"dropout_{dropout:.1f}"
-    folder.mkdir()
-    model.classifier[0].p = dropout
     model.to(args.device, memory_format=torch.channels_last)
+    if args.model == "resnet18":
+        folder = args.output / "resnet18"
+        head, weight = model.fc, model.conv1.weight
+    else:
+        folder = args.output / f"dropout_{dropout:.1f}"
+        model.classifier[0].p = dropout
+        head, weight = model.classifier, model.features[0][0].weight
+    folder.mkdir()
     torch.manual_seed(args.seed)
     loaders = build_loaders(args.dataset_dir, args.manifest, batch_size=32, seed=args.seed)
-    save_json(folder / "config.json", {**config, "dropout": dropout})
+    config = {**config, "dropout": dropout, "head": str(head), "trainable_parameters": {}}
     best = float("inf")
     best_record = {}
     with (folder / "history.csv").open("w", newline="") as file:
@@ -67,13 +77,20 @@ def run_variant(model, args, dropout, probe, config):
         history.writeheader()
         for phase, epochs, lr in [("frozen", 10, 1e-4), ("fine_tune", 20, 1e-5)]:
             frozen = phase == "frozen"
-            model.features.requires_grad_(not frozen)
+            model.requires_grad_(not frozen)
+            head.requires_grad_(True)
             optimizer = torch.optim.Adam((p for p in model.parameters() if p.requires_grad), lr=lr)
+            optimized = {id(p) for group in optimizer.param_groups for p in group["params"]}
+            if any(id(p) not in optimized for p in head.parameters()):
+                raise RuntimeError("Adam debe incluir todos los parámetros de la cabeza")
+            config["trainable_parameters"][phase] = sum(
+                p.numel() for p in model.parameters() if p.requires_grad
+            )
+            save_json(folder / "config.json", config)
             phase_best, stale, plateau = float("inf"), 0, 0
             for step in range(1, (1 if args.smoke else epochs) + 1):
-                model.train()
-                model.features.train(not frozen)  # Congelar también estadísticas de BatchNorm.
-                weight = model.features[0][0].weight
+                model.train(not frozen)  # Congelar también estadísticas de BatchNorm.
+                head.train()
                 before = weight.detach().clone() if step == 1 else None
                 active_lr = optimizer.param_groups[0]["lr"]
                 limit = 1 if args.smoke else None
@@ -88,6 +105,8 @@ def run_variant(model, args, dropout, probe, config):
                 print(f"p={dropout} {phase} {step}: train={train:.5f} val={val:.5f}", flush=True)
                 if val < best:
                     best, best_record = val, record
+                    with torch.no_grad():
+                        expected = model(probe[:1]).detach().clone()
                     torch.save(model.state_dict(), folder / "best.pt")
                 if val < phase_best:
                     phase_best, stale, plateau = val, 0, 0
@@ -104,14 +123,24 @@ def run_variant(model, args, dropout, probe, config):
         torch.load(folder / "best.pt", map_location=args.device, weights_only=True)
     )
     with torch.no_grad():
+        torch.testing.assert_close(model(probe[:1]), expected)
         logits = model(probe)
         if logits.shape != (len(probe), len(CLASS_TO_IDX)) or not logits.isfinite().all():
             raise ValueError("Checkpoint inválido")
+    with (folder / "history.csv").open(newline="") as file:
+        selected = min(csv.DictReader(file), key=lambda row: float(row["val_loss"]))
+    if (selected["phase"], int(selected["epoch"]), float(selected["val_loss"])) != (
+        best_record["phase"],
+        best_record["epoch"],
+        best,
+    ):
+        raise ValueError("El historial no identifica el checkpoint seleccionado")
     return {"dropout": dropout, **best_record}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model", choices=["mobilenet_v2", "resnet18"], default="mobilenet_v2")
     parser.add_argument("--dataset-dir", type=Path, default=DEFAULT_RAW_DIR)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST_PATH)
     parser.add_argument("--output", type=Path, required=True)
@@ -126,10 +155,14 @@ def main():
     classes = json.loads(class_file.read_text())
     if {r["class"]: r["class_idx"] for r in classes["classes"]} != CLASS_TO_IDX:
         raise ValueError("El índice no coincide con el contrato de clases")
-    model = mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1)
-    if not isinstance(model.classifier[0], nn.Dropout):
-        raise ValueError("Se esperaba Dropout en la cabeza de torchvision")
-    model.classifier[1] = nn.Linear(model.last_channel, len(CLASS_TO_IDX))
+    if args.model == "resnet18":
+        model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+        model.fc = nn.Linear(model.fc.in_features, len(CLASS_TO_IDX))
+    else:
+        model = mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1)
+        if not isinstance(model.classifier[0], nn.Dropout):
+            raise ValueError("Se esperaba Dropout en la cabeza de torchvision")
+        model.classifier[1] = nn.Linear(model.last_channel, len(CLASS_TO_IDX))
     probe = next(iter(build_loaders(args.dataset_dir, args.manifest)["val"]))[0]
     model.eval()
     with torch.no_grad():
@@ -153,7 +186,10 @@ def main():
         "torchvision": torchvision.__version__,
     }
     probe = probe.to(args.device)
-    results = [run_variant(deepcopy(model), args, p, probe, config) for p in (0.5, 0.0)]
+    if args.model == "resnet18":
+        results = [run_variant(model, args, 0.0, probe, config)]
+    else:
+        results = [run_variant(deepcopy(model), args, p, probe, config) for p in (0.5, 0.0)]
     save_json(args.output / "comparison.json", results)
     print(results)
 
