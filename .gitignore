@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# Dataset artifacts: images, archives and raw downloads must NEVER be pushed.
+# The shared manifests under data/manifests/ are versioned on purpose.
+# ---------------------------------------------------------------------------
+data/raw/
+data/processed/
+*.zip
+*.7z
+*.rar
+*.tar.gz
+
+# Image files (defense in depth: even outside data/).
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tif
+*.tiff
+*.webp
+
+# Training / evaluation artifacts (future issues).
+runs/
+outputs/
+checkpoints/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+
+# Python / tooling.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors and OS.
+.idea/
+.vscode/
+.DS_Store
